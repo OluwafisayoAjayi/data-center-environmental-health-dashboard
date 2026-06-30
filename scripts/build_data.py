@@ -187,6 +187,7 @@ def discover_im3_data_urls(record_api: str) -> list[str]:
     return cleaned
 
 
+
 def _read_im3_gpkg(path: Path) -> pd.DataFrame:
     import geopandas as gpd
 
@@ -203,6 +204,22 @@ def _read_im3_gpkg(path: Path) -> pd.DataFrame:
             gdf = gpd.read_file(path, layer=layer)
             if len(gdf) == 0:
                 continue
+
+            # Keep a usable coordinate before dropping geometry. Some IM3 layers carry
+            # county_id as a 3-digit county code, not a full 5-digit state+county FIPS.
+            # Coordinates allow us to recover the true county FIPS by spatial join.
+            if gdf.geometry.name in gdf.columns and gdf.geometry.notna().any():
+                try:
+                    if gdf.crs is not None:
+                        gdf = gdf.to_crs("EPSG:4326")
+                    pts = gdf.geometry.representative_point()
+                    if "lat" not in gdf.columns:
+                        gdf["lat"] = pts.y
+                    if "lon" not in gdf.columns:
+                        gdf["lon"] = pts.x
+                except Exception:
+                    pass
+
             df = pd.DataFrame(gdf.drop(columns=["geometry"], errors="ignore"))
             df = normalize_cols(df)
             if "type" not in df.columns:
@@ -215,6 +232,73 @@ def _read_im3_gpkg(path: Path) -> pd.DataFrame:
     if not frames:
         raise RuntimeError("No readable layers found in IM3 GPKG.")
     return pd.concat(frames, ignore_index=True, sort=False)
+
+
+STATE_ABBR_TO_FIPS = {
+    "AL": "01", "AK": "02", "AZ": "04", "AR": "05", "CA": "06", "CO": "08", "CT": "09",
+    "DE": "10", "DC": "11", "FL": "12", "GA": "13", "HI": "15", "ID": "16", "IL": "17",
+    "IN": "18", "IA": "19", "KS": "20", "KY": "21", "LA": "22", "ME": "23", "MD": "24",
+    "MA": "25", "MI": "26", "MN": "27", "MS": "28", "MO": "29", "MT": "30", "NE": "31",
+    "NV": "32", "NH": "33", "NJ": "34", "NM": "35", "NY": "36", "NC": "37", "ND": "38",
+    "OH": "39", "OK": "40", "OR": "41", "PA": "42", "RI": "44", "SC": "45", "SD": "46",
+    "TN": "47", "TX": "48", "UT": "49", "VT": "50", "VA": "51", "WA": "53", "WV": "54",
+    "WI": "55", "WY": "56", "PR": "72"
+}
+
+
+def _state_to_fips(value: Any) -> str | None:
+    if pd.isna(value):
+        return None
+    s = str(value).strip().upper()
+    if s.endswith(".0"):
+        s = s[:-2]
+    if s in STATE_ABBR_TO_FIPS:
+        return STATE_ABBR_TO_FIPS[s]
+    digits = re.sub(r"\D", "", s)
+    if len(digits) == 1:
+        return digits.zfill(2)
+    if len(digits) == 2 and digits != "00":
+        return digits
+    return None
+
+
+def _make_full_fips_from_state_county(dc: pd.DataFrame, county_col: str) -> pd.Series:
+    state_col = first_existing(dc, ["state_fips", "state_code", "statefp", "state", "state_abbr", "stateabbr"])
+    if state_col is None:
+        return pd.Series([None] * len(dc), index=dc.index)
+
+    state_part = dc[state_col].apply(_state_to_fips)
+    county_part = dc[county_col].apply(lambda x: zfill_fips(x, 3))
+    return state_part.fillna("") + county_part.fillna("")
+
+
+def _county_fips_from_spatial_join(dc: pd.DataFrame, lat_col: str, lon_col: str, cfg: dict[str, Any]) -> pd.Series:
+    import geopandas as gpd
+
+    year = cfg["years"].get("county_shapes", 2024)
+    url = cfg["sources"]["county_shapes_zip"].format(year=year)
+    zip_path = RAW / f"county_shapes_{year}.zip"
+    if not zip_path.exists():
+        print(f"Downloading county shapes for data-center spatial join: {url}")
+        zip_path.write_bytes(get(url).content)
+
+    counties = gpd.read_file(zip_path)[["GEOID", "geometry"]].to_crs("EPSG:4326")
+    temp = dc.copy()
+    temp[lat_col] = pd.to_numeric(temp[lat_col], errors="coerce")
+    temp[lon_col] = pd.to_numeric(temp[lon_col], errors="coerce")
+    valid = temp[lat_col].notna() & temp[lon_col].notna()
+    result = pd.Series([None] * len(temp), index=temp.index)
+    if valid.sum() == 0:
+        return result
+
+    pts = gpd.GeoDataFrame(
+        temp.loc[valid].copy(),
+        geometry=gpd.points_from_xy(temp.loc[valid, lon_col], temp.loc[valid, lat_col]),
+        crs="EPSG:4326",
+    )
+    joined = gpd.sjoin(pts, counties, how="left", predicate="within")
+    result.loc[valid] = joined["GEOID"].astype(str).str.zfill(5).values
+    return result
 
 
 def fetch_data_centers(cfg: dict[str, Any]) -> pd.DataFrame:
@@ -238,6 +322,14 @@ def fetch_data_centers(cfg: dict[str, Any]) -> pd.DataFrame:
                 json_path = RAW / f"im3_data_center_{i}.geojson"
                 json_path.write_bytes(content)
                 gdf = gpd.read_file(json_path)
+                if gdf.geometry.notna().any():
+                    if gdf.crs is not None:
+                        gdf = gdf.to_crs("EPSG:4326")
+                    pts = gdf.geometry.representative_point()
+                    if "lat" not in gdf.columns:
+                        gdf["lat"] = pts.y
+                    if "lon" not in gdf.columns:
+                        gdf["lon"] = pts.x
                 df = pd.DataFrame(gdf.drop(columns=["geometry"], errors="ignore"))
                 df = normalize_cols(df)
             else:
@@ -245,7 +337,7 @@ def fetch_data_centers(cfg: dict[str, Any]) -> pd.DataFrame:
 
             if len(df) > 0:
                 dfs.append(df)
-                print(f"Accepted IM3 candidate {i}: {len(df):,} rows")
+                print(f"Accepted IM3 candidate {i}: {len(df):,} rows; columns include {list(df.columns)[:12]}")
         except Exception as e:
             print(f"Skipping IM3 candidate because it could not be parsed: {url} ({e})")
 
@@ -253,17 +345,49 @@ def fetch_data_centers(cfg: dict[str, Any]) -> pd.DataFrame:
         raise RuntimeError("No IM3 CSV/GPKG files could be parsed.")
 
     dc = pd.concat(dfs, ignore_index=True, sort=False)
-    fips_col = first_existing(dc, ["county_id", "county_fips", "fips", "geoid", "county_geoid"])
-    if fips_col is None:
-        raise RuntimeError(f"IM3 data did not contain a recognized county FIPS column. Columns: {list(dc.columns)[:40]}")
 
-    dc["county_fips"] = dc[fips_col].apply(zfill_fips)
+    # Identify useful columns before constructing county_fips.
+    county_col = first_existing(dc, ["county_id", "county_code", "countyfp", "county_fips", "fips", "geoid", "county_geoid"])
+    lat_col = first_existing(dc, ["lat", "latitude", "y"])
+    lon_col = first_existing(dc, ["lon", "lng", "longitude", "x"])
+
+    # IMPORTANT FIX: IM3 county_id may be only the 3-digit county code. If we simply
+    # zfill it to 5 digits, we get invalid values like 00001, which cannot merge with
+    # real county FIPS such as 48113 for Dallas County, TX.
+    dc["county_fips"] = None
+
+    if county_col is not None:
+        candidate = dc[county_col].apply(zfill_fips)
+        full_fips_ok = candidate.notna() & candidate.str.match(r"^(?!00)\d{5}$", na=False)
+        if full_fips_ok.mean() > 0.50:
+            dc.loc[full_fips_ok, "county_fips"] = candidate.loc[full_fips_ok]
+            print("Using full county FIPS already present in IM3 data.")
+        else:
+            constructed = _make_full_fips_from_state_county(dc, county_col)
+            constructed_ok = constructed.notna() & constructed.str.match(r"^(?!00)\d{5}$", na=False)
+            if constructed_ok.mean() > 0.50:
+                dc.loc[constructed_ok, "county_fips"] = constructed.loc[constructed_ok]
+                print("Constructed county FIPS from state + county_id fields.")
+
+    if dc["county_fips"].notna().mean() < 0.50 and lat_col and lon_col:
+        try:
+            spatial = _county_fips_from_spatial_join(dc, lat_col, lon_col, cfg)
+            spatial_ok = spatial.notna() & spatial.str.match(r"^(?!00)\d{5}$", na=False)
+            dc.loc[spatial_ok, "county_fips"] = spatial.loc[spatial_ok]
+            print(f"Recovered county FIPS by spatial join for {spatial_ok.sum():,} data center records.")
+        except Exception as e:
+            print(f"WARNING: spatial join for data-center county FIPS failed: {e}")
+
     dc = dc.dropna(subset=["county_fips"])
+    dc = dc[dc["county_fips"].astype(str).str.match(r"^(?!00)\d{5}$", na=False)].copy()
+
+    if len(dc) == 0:
+        raise RuntimeError("IM3 data loaded, but no valid 5-digit county FIPS codes could be constructed.")
 
     id_col = first_existing(dc, ["id", "osm_id", "facility_id", "name", "ref"])
     sqft_col = first_existing(dc, ["sqft", "square_feet", "area_sqft", "area_ft2"])
-    lat_col = first_existing(dc, ["lat", "latitude"])
-    lon_col = first_existing(dc, ["lon", "lng", "longitude"])
+    lat_col = first_existing(dc, ["lat", "latitude", "y"])
+    lon_col = first_existing(dc, ["lon", "lng", "longitude", "x"])
     type_col = first_existing(dc, ["type", "geometry_type"])
 
     if sqft_col:
@@ -296,6 +420,7 @@ def fetch_data_centers(cfg: dict[str, Any]) -> pd.DataFrame:
         out["dc_types"] = ""
 
     print(f"Loaded data_centers: {len(out):,} counties; total dc_count = {out['dc_count'].sum():,.0f}")
+    print("Texas data center counties found:", out[out["county_fips"].astype(str).str.startswith("48")].head(10).to_dict("records"))
     return out
 
 
