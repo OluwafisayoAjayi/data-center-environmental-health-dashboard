@@ -1,12 +1,3 @@
-"""
-Build county-level data for the Environmental Health and Data Center Pressure Dashboard.
-
-Run locally:
-    pip install -r scripts/requirements.txt
-    python scripts/build_data.py
-
-GitHub Actions runs this file weekly and commits the updated dashboard data.
-"""
 from __future__ import annotations
 
 import io
