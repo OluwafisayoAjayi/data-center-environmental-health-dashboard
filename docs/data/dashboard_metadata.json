@@ -1,19 +1,18 @@
 {
-  "built_at_utc": "2026-06-30T17:07:47.016293+00:00",
+  "built_at_utc": "2026-06-30T17:38:43.018601+00:00",
   "airdata_year": 2024,
   "acs_year": 2024,
   "places_release": 2025,
   "county_shapes_year": 2024,
-  "rows": 3244,
+  "rows": 3345,
   "sources_loaded": [
+    "data_centers",
     "airdata",
     "places",
+    "acs",
     "eji_optional",
     "county_centroids"
   ],
-  "warnings": [
-    "data_centers: RuntimeError: No IM3 CSV files could be parsed.",
-    "acs: JSONDecodeError: Expecting value: line 2 column 1 (char 1)"
-  ],
+  "warnings": [],
   "interpretation": "DCEHPI is a screening index, not a causal health-impact estimate."
 }
