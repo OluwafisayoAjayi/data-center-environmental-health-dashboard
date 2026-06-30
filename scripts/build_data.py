@@ -121,99 +121,181 @@ def fetch_county_centroids(cfg: dict[str, Any]) -> pd.DataFrame:
     return out
 
 
-def discover_msdlive_csv_urls(record_api: str) -> list[str]:
-    """Discover CSV download links from an Invenio/MSD-LIVE record.
 
-    If the record API structure changes, set a direct CSV/GPKG URL in config and adapt this function.
+def discover_im3_data_urls(record_api: str) -> list[str]:
+    """Find IM3 CSV/GPKG downloads from MSD-LIVE and GitHub.
+
+    The IM3 record may expose files as CSV, GeoPackage, or API content links. This
+    function is intentionally broad so the dashboard keeps working if the public
+    data package changes format.
     """
-    print(f"Discovering IM3 data files from {record_api}")
-    rec = get(record_api).json()
     urls: list[str] = []
 
-    def walk(obj: Any) -> None:
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                if isinstance(v, str) and (v.lower().endswith(".csv") or ".csv?" in v.lower()):
-                    urls.append(v)
-                elif k in {"self", "content", "download", "url"} and isinstance(v, str) and "api/records" in v:
-                    # Some Invenio file links do not end in .csv, but file key/name may tell us format.
-                    urls.append(v)
-                else:
-                    walk(v)
-        elif isinstance(obj, list):
-            for item in obj:
-                walk(item)
+    print(f"Discovering IM3 data files from MSD-LIVE: {record_api}")
+    try:
+        rec = get(record_api).json()
+        files = rec.get("files", {}).get("entries", {}) if isinstance(rec, dict) else {}
+        for name, meta in files.items():
+            lname = str(name).lower()
+            if lname.endswith((".csv", ".gpkg", ".geojson", ".json")):
+                link = meta.get("links", {}).get("content") or meta.get("links", {}).get("self")
+                if link:
+                    urls.append(link)
 
-    walk(rec)
-    # Also inspect files entries specifically.
-    files = rec.get("files", {}).get("entries", {}) if isinstance(rec, dict) else {}
-    for name, meta in files.items():
-        if name.lower().endswith(".csv"):
-            link = meta.get("links", {}).get("content") or meta.get("links", {}).get("self")
-            if link:
-                urls.append(link)
-    cleaned = []
+        def walk(obj: Any) -> None:
+            if isinstance(obj, dict):
+                for v in obj.values():
+                    if isinstance(v, str):
+                        low = v.lower()
+                        if low.endswith((".csv", ".gpkg", ".geojson")) or ".csv?" in low or ".gpkg?" in low:
+                            urls.append(v)
+                    else:
+                        walk(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    walk(item)
+        walk(rec)
+    except Exception as e:
+        print(f"WARNING: Could not discover IM3 files from MSD-LIVE API: {e}")
+
+    # Fallback: inspect the public GitHub repository tree and pick data-center files.
+    # This is important because the public atlas code/data may expose the geodatabase
+    # through GitHub even when the MSD-LIVE API links are not CSV-readable.
+    try:
+        gh_api = "https://api.github.com/repos/IMMM-SFA/datacenter-atlas/git/trees/main?recursive=1"
+        print(f"Discovering IM3 data files from GitHub tree: {gh_api}")
+        tree = get(gh_api).json().get("tree", [])
+        for item in tree:
+            path = item.get("path", "")
+            low = path.lower()
+            if low.endswith((".csv", ".gpkg", ".geojson")) and (
+                "data_center" in low or "datacenter" in low or "data-center" in low
+            ):
+                urls.append(f"https://raw.githubusercontent.com/IMMM-SFA/datacenter-atlas/main/{path}")
+    except Exception as e:
+        print(f"WARNING: Could not discover IM3 files from GitHub: {e}")
+
+    cleaned: list[str] = []
     for u in urls:
         if u.startswith("/"):
             u = "https://data.msdlive.org" + u
         if u not in cleaned:
             cleaned.append(u)
+    print(f"IM3 candidate data URLs discovered: {len(cleaned)}")
+    for u in cleaned:
+        print(f"  candidate: {u}")
     return cleaned
 
 
-def fetch_data_centers(cfg: dict[str, Any]) -> pd.DataFrame:
-    urls = discover_msdlive_csv_urls(cfg["sources"]["im3_record_api"])
-    if not urls:
-        raise RuntimeError(
-            "Could not discover CSV files from the IM3 record API. Open the MSD-LIVE record, "
-            "download the CSV files manually once, or update scripts/config.yml with direct CSV URLs."
-        )
+def _read_im3_gpkg(path: Path) -> pd.DataFrame:
+    import geopandas as gpd
 
-    dfs = []
-    for i, url in enumerate(urls):
+    frames: list[pd.DataFrame] = []
+    layer_names = []
+    try:
+        import pyogrio
+        layer_names = [x[0] for x in pyogrio.list_layers(path)]
+    except Exception:
+        layer_names = ["point", "building", "campus"]
+
+    for layer in layer_names:
         try:
-            print(f"Downloading IM3 CSV {i+1}/{len(urls)}: {url}")
-            df = normalize_cols(pd.read_csv(io.BytesIO(get(url).content), low_memory=False))
+            gdf = gpd.read_file(path, layer=layer)
+            if len(gdf) == 0:
+                continue
+            df = pd.DataFrame(gdf.drop(columns=["geometry"], errors="ignore"))
+            df = normalize_cols(df)
+            if "type" not in df.columns:
+                df["type"] = layer
+            frames.append(df)
+            print(f"Read IM3 GPKG layer {layer}: {len(df):,} rows")
+        except Exception as e:
+            print(f"WARNING: Could not read GPKG layer {layer}: {e}")
+
+    if not frames:
+        raise RuntimeError("No readable layers found in IM3 GPKG.")
+    return pd.concat(frames, ignore_index=True, sort=False)
+
+
+def fetch_data_centers(cfg: dict[str, Any]) -> pd.DataFrame:
+    urls = discover_im3_data_urls(cfg["sources"]["im3_record_api"])
+    if not urls:
+        raise RuntimeError("No IM3 CSV/GPKG candidate URLs were discovered.")
+
+    dfs: list[pd.DataFrame] = []
+    for i, url in enumerate(urls, start=1):
+        try:
+            print(f"Downloading IM3 candidate {i}/{len(urls)}: {url}")
+            content = get(url).content
+            lower = url.lower()
+
+            if ".gpkg" in lower or content[:16].lower().startswith(b"sqlite format"):
+                gpkg_path = RAW / f"im3_data_center_{i}.gpkg"
+                gpkg_path.write_bytes(content)
+                df = _read_im3_gpkg(gpkg_path)
+            elif lower.endswith(".geojson") or lower.endswith(".json"):
+                import geopandas as gpd
+                json_path = RAW / f"im3_data_center_{i}.geojson"
+                json_path.write_bytes(content)
+                gdf = gpd.read_file(json_path)
+                df = pd.DataFrame(gdf.drop(columns=["geometry"], errors="ignore"))
+                df = normalize_cols(df)
+            else:
+                df = normalize_cols(pd.read_csv(io.BytesIO(content), low_memory=False))
+
             if len(df) > 0:
                 dfs.append(df)
+                print(f"Accepted IM3 candidate {i}: {len(df):,} rows")
         except Exception as e:
-            print(f"Skipping candidate IM3 URL because it could not be parsed as CSV: {url} ({e})")
+            print(f"Skipping IM3 candidate because it could not be parsed: {url} ({e})")
 
     if not dfs:
-        raise RuntimeError("No IM3 CSV files could be parsed.")
+        raise RuntimeError("No IM3 CSV/GPKG files could be parsed.")
 
     dc = pd.concat(dfs, ignore_index=True, sort=False)
-    fips_col = first_existing(dc, ["county_id", "county_fips", "fips", "geoid"])
+    fips_col = first_existing(dc, ["county_id", "county_fips", "fips", "geoid", "county_geoid"])
     if fips_col is None:
-        raise RuntimeError("IM3 files did not contain a county FIPS column recognized by the script.")
+        raise RuntimeError(f"IM3 data did not contain a recognized county FIPS column. Columns: {list(dc.columns)[:40]}")
+
     dc["county_fips"] = dc[fips_col].apply(zfill_fips)
-    id_col = first_existing(dc, ["id", "osm_id", "facility_id", "name"])
-    sqft_col = first_existing(dc, ["sqft", "square_feet", "area_sqft"])
+    dc = dc.dropna(subset=["county_fips"])
+
+    id_col = first_existing(dc, ["id", "osm_id", "facility_id", "name", "ref"])
+    sqft_col = first_existing(dc, ["sqft", "square_feet", "area_sqft", "area_ft2"])
     lat_col = first_existing(dc, ["lat", "latitude"])
     lon_col = first_existing(dc, ["lon", "lng", "longitude"])
     type_col = first_existing(dc, ["type", "geometry_type"])
 
-    agg_spec = {"dc_records": (fips_col, "size")}
+    if sqft_col:
+        dc[sqft_col] = pd.to_numeric(dc[sqft_col], errors="coerce")
+    if lat_col:
+        dc[lat_col] = pd.to_numeric(dc[lat_col], errors="coerce")
+    if lon_col:
+        dc[lon_col] = pd.to_numeric(dc[lon_col], errors="coerce")
+
+    agg_spec = {"dc_records": ("county_fips", "size")}
     if id_col:
         agg_spec["dc_count"] = (id_col, pd.Series.nunique)
     else:
-        agg_spec["dc_count"] = (fips_col, "size")
+        agg_spec["dc_count"] = ("county_fips", "size")
     if sqft_col:
-        dc[sqft_col] = pd.to_numeric(dc[sqft_col], errors="coerce")
         agg_spec["dc_sqft"] = (sqft_col, "sum")
     if lat_col:
-        dc[lat_col] = pd.to_numeric(dc[lat_col], errors="coerce")
         agg_spec["dc_mean_lat"] = (lat_col, "mean")
     if lon_col:
-        dc[lon_col] = pd.to_numeric(dc[lon_col], errors="coerce")
         agg_spec["dc_mean_lon"] = (lon_col, "mean")
-    if type_col:
-        types = dc.groupby("county_fips")[type_col].apply(lambda s: ", ".join(sorted(set(s.dropna().astype(str))))).reset_index(name="dc_types")
-    else:
-        types = pd.DataFrame(columns=["county_fips", "dc_types"])
 
-    out = dc.dropna(subset=["county_fips"]).groupby("county_fips").agg(**agg_spec).reset_index()
-    out = out.merge(types, on="county_fips", how="left")
+    out = dc.groupby("county_fips").agg(**agg_spec).reset_index()
+
+    if type_col:
+        types = dc.groupby("county_fips")[type_col].apply(
+            lambda s: ", ".join(sorted(set(s.dropna().astype(str))))
+        ).reset_index(name="dc_types")
+        out = out.merge(types, on="county_fips", how="left")
+    else:
+        out["dc_types"] = ""
+
+    print(f"Loaded data_centers: {len(out):,} counties; total dc_count = {out['dc_count'].sum():,.0f}")
     return out
 
 
@@ -305,44 +387,55 @@ def fetch_places(cfg: dict[str, Any]) -> pd.DataFrame:
     return out
 
 
+
 def fetch_acs(cfg: dict[str, Any]) -> pd.DataFrame:
+    """Fetch ACS county population and optional socioeconomic controls.
+
+    The dashboard only needs population for data-center intensity. The profile API
+    sometimes rejects individual DP variables, so this function first uses the
+    stable detailed ACS table B01003 for population, then tries profile controls
+    separately. If controls fail, the dashboard still builds correctly.
+    """
     year = cfg["years"]["acs"]
-    base = cfg["sources"]["acs_profile_api"].format(year=year)
-    vars_ = [
-        "NAME",
-        "DP05_0001E",  # population
-        "DP03_0128PE", # poverty percent
-        "DP03_0099PE", # uninsured percent (may vary by year)
-        "DP04_0046PE", # renter occupied housing units percent
-    ]
-    params = {"get": ",".join(vars_), "for": "county:*"}
-    print(f"Downloading ACS profile data: {base}")
+    out = pd.DataFrame(columns=["county_fips"])
+
+    # Stable population request from detailed ACS 5-year API.
     try:
-        resp = requests.get(base, params=params, timeout=120)
+        base_detail = f"https://api.census.gov/data/{year}/acs/acs5"
+        params = {"get": "NAME,B01003_001E", "for": "county:*"}
+        print(f"Downloading ACS detailed population data: {base_detail}")
+        resp = requests.get(base_detail, params=params, timeout=120)
         resp.raise_for_status()
         data = resp.json()
-        df = pd.DataFrame(data[1:], columns=data[0])
+        df = normalize_cols(pd.DataFrame(data[1:], columns=data[0]))
+        df["county_fips"] = df["state"].astype(str).str.zfill(2) + df["county"].astype(str).str.zfill(3)
+        out = df[["county_fips", "name", "b01003_001e"]].rename(columns={"name": "acs_name", "b01003_001e": "population"})
+        out["population"] = pd.to_numeric(out["population"], errors="coerce")
     except Exception as e:
-        print(f"ACS profile request failed with selected variables: {e}")
-        # Fallback to population only.
-        params = {"get": "NAME,DP05_0001E", "for": "county:*"}
-        resp = requests.get(base, params=params, timeout=120)
+        print(f"WARNING ACS population request failed: {e}")
+        out = pd.DataFrame(columns=["county_fips", "acs_name", "population"])
+
+    # Optional profile controls. This may fail without breaking the dashboard.
+    try:
+        base_profile = cfg["sources"]["acs_profile_api"].format(year=year)
+        vars_ = ["NAME", "DP03_0128PE", "DP03_0099PE", "DP04_0046PE"]
+        params = {"get": ",".join(vars_), "for": "county:*"}
+        print(f"Downloading ACS optional profile controls: {base_profile}")
+        resp = requests.get(base_profile, params=params, timeout=120)
         resp.raise_for_status()
         data = resp.json()
-        df = pd.DataFrame(data[1:], columns=data[0])
-    df = normalize_cols(df)
-    df["county_fips"] = df["state"].astype(str).str.zfill(2) + df["county"].astype(str).str.zfill(3)
-    rename = {
-        "dp05_0001e": "population",
-        "dp03_0128pe": "poverty_rate",
-        "dp03_0099pe": "uninsured_rate",
-        "dp04_0046pe": "renter_share",
-    }
-    keep = ["county_fips", "name"] + [c for c in rename if c in df.columns]
-    out = df[keep].rename(columns=rename)
-    for c in out.columns:
-        if c not in ["county_fips", "name"]:
-            out[c] = pd.to_numeric(out[c], errors="coerce")
+        prof = normalize_cols(pd.DataFrame(data[1:], columns=data[0]))
+        prof["county_fips"] = prof["state"].astype(str).str.zfill(2) + prof["county"].astype(str).str.zfill(3)
+        rename = {"dp03_0128pe": "poverty_rate", "dp03_0099pe": "uninsured_rate", "dp04_0046pe": "renter_share"}
+        keep = ["county_fips"] + [c for c in rename if c in prof.columns]
+        prof = prof[keep].rename(columns=rename)
+        for c in prof.columns:
+            if c != "county_fips":
+                prof[c] = pd.to_numeric(prof[c], errors="coerce")
+        out = out.merge(prof, on="county_fips", how="outer")
+    except Exception as e:
+        print(f"WARNING ACS optional profile controls skipped: {e}")
+
     return out
 
 
