@@ -327,13 +327,17 @@ def fetch_acs(cfg: dict[str, Any]) -> pd.DataFrame:
     params = {"get": ",".join(vars_), "for": "county:*"}
     print(f"Downloading ACS profile data: {base}")
     try:
-        data = get(base + "?" + "&".join(f"{k}={v}" for k, v in params.items())).json()
+        resp = requests.get(base, params=params, timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
         df = pd.DataFrame(data[1:], columns=data[0])
     except Exception as e:
         print(f"ACS profile request failed with selected variables: {e}")
         # Fallback to population only.
         params = {"get": "NAME,DP05_0001E", "for": "county:*"}
-        data = get(base + "?" + "&".join(f"{k}={v}" for k, v in params.items())).json()
+        resp = requests.get(base, params=params, timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
         df = pd.DataFrame(data[1:], columns=data[0])
     df = normalize_cols(df)
     df["county_fips"] = df["state"].astype(str).str.zfill(2) + df["county"].astype(str).str.zfill(3)
@@ -412,10 +416,16 @@ def fetch_eji_optional(cfg: dict[str, Any]) -> pd.DataFrame:
 def build_index(df: pd.DataFrame, weights: dict[str, float]) -> pd.DataFrame:
     out = df.copy()
 
-    # Derived metrics
-    out["dc_sqft"] = pd.to_numeric(out.get("dc_sqft", np.nan), errors="coerce").fillna(0)
-    out["dc_count"] = pd.to_numeric(out.get("dc_count", np.nan), errors="coerce").fillna(0)
-    out["population"] = pd.to_numeric(out.get("population", np.nan), errors="coerce")
+    # Derived metrics. Use a Series default so the script still runs when an optional
+    # source fails or a column is missing.
+    def numeric_column(name: str, default: float = np.nan) -> pd.Series:
+        if name in out.columns:
+            return pd.to_numeric(out[name], errors="coerce")
+        return pd.Series(default, index=out.index, dtype="float64")
+
+    out["dc_sqft"] = numeric_column("dc_sqft", 0).fillna(0)
+    out["dc_count"] = numeric_column("dc_count", 0).fillna(0)
+    out["population"] = numeric_column("population", np.nan)
     out["dc_sqft_per_100k"] = np.where(out["population"] > 0, out["dc_sqft"] / out["population"] * 100000, np.nan)
     out["dc_count_per_100k"] = np.where(out["population"] > 0, out["dc_count"] / out["population"] * 100000, np.nan)
 
