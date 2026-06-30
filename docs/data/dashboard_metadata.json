@@ -1,10 +1,10 @@
 {
-  "built_at_utc": "2026-06-30T17:38:43.018601+00:00",
+  "built_at_utc": "2026-06-30T17:52:46.707691+00:00",
   "airdata_year": 2024,
   "acs_year": 2024,
   "places_release": 2025,
   "county_shapes_year": 2024,
-  "rows": 3345,
+  "rows": 3244,
   "sources_loaded": [
     "data_centers",
     "airdata",
