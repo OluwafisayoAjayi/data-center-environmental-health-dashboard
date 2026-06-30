@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Methodology | Data Center Environmental Health Pressure Dashboard</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="hero small">
+    <div>
+      <p class="eyebrow">Methodology</p>
+      <h1>Data Center Environmental Health Pressure Index</h1>
+      <p class="subtitle">A county-level screening index for identifying where data center infrastructure overlaps with environmental and health vulnerability.</p>
+    </div>
+    <div class="hero-card"><a href="index.html">Back to dashboard</a></div>
+  </header>
+
+  <main class="methodology">
+    <section class="panel">
+      <h2>1. Research objective</h2>
+      <p>This dashboard examines whether data center infrastructure is geographically concentrated in counties that also face high pollution exposure, population health vulnerability, and social/environmental justice risk. The dashboard is intended to support research, policy screening, and environmental planning.</p>
+    </section>
+
+    <section class="panel">
+      <h2>2. Unit of analysis</h2>
+      <p>The unit of analysis is the U.S. county. County-level analysis allows data center locations, pollution measures, health estimates, ACS variables, and environmental justice indicators to be harmonized using county FIPS codes.</p>
+    </section>
+
+    <section class="panel">
+      <h2>3. Data construction</h2>
+      <p>Data center pressure is measured using data center counts and facility square footage where available. Pollution exposure is measured using EPA AirData variables such as AQI, PM2.5, ozone, and unhealthy air days. Health vulnerability is measured using CDC PLACES indicators including asthma, COPD, coronary heart disease, poor physical health, and poor mental health. Social vulnerability uses ACS and PLACES variables such as poverty, uninsured status, and renter share where available. Environmental justice and climate burden indicators are incorporated from CDC/ATSDR EJI when the public service returns compatible fields.</p>
+    </section>
+
+    <section class="panel">
+      <h2>4. Index construction</h2>
+      <p>Variables are converted to national percentile ranks. Higher percentiles indicate greater pressure or vulnerability. Related variables are grouped into domains. The main domains are data center pressure, pollution exposure, health vulnerability, social vulnerability, and environmental justice/climate burden. The final index is a weighted average of available domain scores. If an optional domain is unavailable in a specific update, weights are renormalized across available domains.</p>
+      <pre><code>DCEHPI = 0.30(Data Center Pressure)
+       + 0.25(Pollution Exposure)
+       + 0.25(Health Vulnerability)
+       + 0.10(Social Vulnerability)
+       + 0.10(Environmental Justice / Climate Burden)</code></pre>
+    </section>
+
+    <section class="panel">
+      <h2>5. Interpretation</h2>
+      <p>A higher DCEHPI value means a county has a stronger overlap of data center infrastructure, environmental exposure, and health vulnerability. The index is not a causal estimate. It should not be interpreted as evidence that data centers caused poor air quality or poor health outcomes.</p>
+    </section>
+
+    <section class="panel">
+      <h2>6. Suggested empirical extension</h2>
+      <p>For a PhD paper, the dashboard can support a second-stage empirical analysis. A descriptive regression can compare whether data-center-intensive counties differ from other counties within the same state. A stronger causal extension would use a difference-in-differences or event-study design around data center entry, expansion, or announced electricity-load increases.</p>
+    </section>
+  </main>
+</body>
+</html>

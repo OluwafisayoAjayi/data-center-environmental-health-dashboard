@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Environmental Health and Data Center Pressure Dashboard</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">County-level environmental economics dashboard</p>
+      <h1>Environmental Health and Data Center Pressure Dashboard</h1>
+      <p class="subtitle">Mapping where data center infrastructure overlaps with pollution exposure, power-sector/environmental pressure, and health vulnerability across U.S. counties.</p>
+    </div>
+    <div class="hero-card">
+      <span id="lastUpdated">Data loading...</span>
+      <a href="methodology.html">Methodology</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="controls">
+      <label>
+        State
+        <select id="stateFilter"><option value="ALL">All states</option></select>
+      </label>
+      <label>
+        Map metric
+        <select id="metricFilter">
+          <option value="dcehpi">Overall pressure index</option>
+          <option value="data_center_pressure">Data center pressure</option>
+          <option value="pollution_exposure">Pollution exposure</option>
+          <option value="health_vulnerability">Health vulnerability</option>
+          <option value="social_vulnerability">Social vulnerability</option>
+          <option value="dc_count">Data center count</option>
+          <option value="dc_sqft_per_100k">Data center sqft per 100,000 residents</option>
+          <option value="max_aqi">Max AQI</option>
+          <option value="pm25_mean">PM2.5 mean</option>
+          <option value="asthma_prev">Asthma prevalence</option>
+        </select>
+      </label>
+      <label>
+        Priority group
+        <select id="priorityFilter"><option value="ALL">All groups</option></select>
+      </label>
+      <label class="search-box">
+        Search county
+        <input id="countySearch" placeholder="e.g., Loudoun, VA" />
+      </label>
+      <button id="resetBtn">Reset</button>
+    </section>
+
+    <section class="kpis">
+      <div class="kpi"><span id="kpiCounties">—</span><p>Counties in view</p></div>
+      <div class="kpi"><span id="kpiDC">—</span><p>Data centers in view</p></div>
+      <div class="kpi"><span id="kpiAvgIndex">—</span><p>Average pressure index</p></div>
+      <div class="kpi"><span id="kpiHighPriority">—</span><p>Highest-priority counties</p></div>
+    </section>
+
+    <section class="grid two">
+      <div class="panel">
+        <div class="panel-title">
+          <h2>National map</h2>
+          <p>County circles are colored by the selected metric. Click a county for details.</p>
+        </div>
+        <div id="map"></div>
+      </div>
+      <div class="panel detail-panel">
+        <div class="panel-title">
+          <h2>County profile</h2>
+          <p id="profileHint">Select a county from the map or table.</p>
+        </div>
+        <div id="countyProfile" class="profile-empty">No county selected yet.</div>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="panel">
+        <div class="panel-title">
+          <h2>Top priority counties</h2>
+          <p>Highest counties by Data Center Environmental Health Pressure Index.</p>
+        </div>
+        <div class="table-wrap">
+          <table id="topTable">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>County</th>
+                <th>State</th>
+                <th>DCEHPI</th>
+                <th>Data centers</th>
+                <th>Priority group</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">
+          <h2>Data center pressure vs. health vulnerability</h2>
+          <p>Descriptive relationship only; not causal.</p>
+        </div>
+        <div id="scatter"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <h2>Interpretation</h2>
+      </div>
+      <p class="method-note">The dashboard is a screening tool. A high score means a county has stronger overlap between data center infrastructure, pollution exposure, and health vulnerability. It does not prove that data centers caused pollution or health outcomes.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built for research use. Sources: IM3 Open Source Data Center Atlas, EPA AirData, CDC PLACES, U.S. Census ACS, and CDC/ATSDR EJI when available.</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+# Configuration for the Environmental Health and Data Center Pressure Dashboard
+# Update YEAR values as new official releases become available.
+
+years:
+  airdata: 2024
+  acs: 2024
+  places_release: 2025
+  county_shapes: 2024
+
+sources:
+  # IM3/MSD-LIVE record API. The script discovers CSV file links from this record.
+  im3_record_api: "https://data.msdlive.org/api/records/65g71-a4731"
+
+  # EPA AirData pre-generated files. These are intentionally formula-based so future years can be substituted.
+  airdata_annual_aqi_by_county: "https://aqs.epa.gov/aqsweb/airdata/annual_aqi_by_county_{year}.zip"
+  airdata_annual_conc_by_monitor: "https://aqs.epa.gov/aqsweb/airdata/annual_conc_by_monitor_{year}.zip"
+
+  # CDC PLACES county data, GIS-friendly format, 2025 release.
+  places_county_csv: "https://data.cdc.gov/resource/i46a-9kgh.csv?$limit=50000"
+
+  # ACS 5-year profile API. No key is required for small requests.
+  acs_profile_api: "https://api.census.gov/data/{year}/acs/acs5/profile"
+
+  # Census cartographic county shapefile.
+  county_shapes_zip: "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_us_county_500k.zip"
+
+  # CDC/ATSDR EJI ArcGIS portal item. Optional. The script will try to discover the service URL.
+  eji_portal_item_api: "https://onemap.cdc.gov/Portal/sharing/rest/content/items/c38778176a6b4a65940ffe77c192eded?f=json"
+
+index_weights:
+  data_center_pressure: 0.30
+  pollution_exposure: 0.25
+  health_vulnerability: 0.25
+  social_vulnerability: 0.10
+  environmental_justice: 0.10
+
+output:
+  county_csv: "docs/data/dashboard_county_latest.csv"
+  metadata_json: "docs/data/dashboard_metadata.json"
+  dictionary_csv: "docs/data/data_dictionary.csv"

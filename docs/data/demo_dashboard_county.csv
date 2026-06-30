@@ -1,0 +1,11 @@
+county_fips,county_name,state,lat,lon,population,dc_count,dc_sqft,dc_sqft_per_100k,dc_count_per_100k,max_aqi,p90_aqi,pm25_mean,ozone_mean,asthma_prev,copd_prev,chd_prev,poor_physical_health_prev,poor_mental_health_prev,poverty_rate,uninsured_rate,renter_share,data_center_pressure,pollution_exposure,health_vulnerability,social_vulnerability,environmental_justice,dcehpi,dcehpi_rank,priority_group
+51107,Loudoun County,VA,39.0768,-77.6536,432085,68,18000000,4165840.2,15.74,96,68,8.4,0.054,8.1,4.2,4.0,9.8,15.4,4.9,5.8,24.0,99,62,42,18,,66.9,1,Energy-environment priority
+17031,Cook County,IL,41.8414,-87.8166,5275541,11,3500000,66345.1,0.21,124,82,10.7,0.061,9.8,6.1,6.3,12.7,17.2,13.2,8.1,44.0,84,91,76,81,,83.1,2,Highest priority: data center + pollution + health overlap
+06037,Los Angeles County,CA,34.3209,-118.2247,9829544,10,2600000,26451.9,0.10,151,94,11.2,0.072,8.9,4.9,5.2,11.4,16.1,13.7,8.5,54.0,80,98,64,90,,83.0,3,Energy-environment priority
+48113,Dallas County,TX,32.7666,-96.7778,2606960,9,2200000,84389.9,0.35,118,79,9.8,0.060,9.3,5.5,5.6,12.1,16.8,14.1,17.5,48.0,78,86,72,88,,80.4,4,Highest priority: data center + pollution + health overlap
+04013,Maricopa County,AZ,33.3488,-112.4915,4551524,8,1800000,39547.2,0.18,137,88,9.1,0.066,9.1,5.0,5.1,11.9,16.4,11.8,9.4,37.0,76,94,67,74,,78.1,5,Energy-environment priority
+36061,New York County,NY,40.7831,-73.9712,1597451,5,600000,37559.8,0.31,101,72,8.9,0.055,8.0,4.0,4.1,9.9,14.9,13.6,4.6,76.0,70,70,41,77,,64.9,6,High data center pressure
+25017,Middlesex County,MA,42.4672,-71.2874,1632002,4,900000,55147.0,0.25,89,60,6.7,0.049,8.4,4.3,4.4,10.1,15.1,7.9,3.4,40.0,67,50,47,36,,53.3,7,Lower combined pressure
+53033,King County,WA,47.4902,-121.8359,2313187,7,1600000,69168.5,0.30,81,57,6.0,0.046,8.2,3.8,3.7,9.2,15.6,9.2,4.0,45.0,74,42,39,45,,52.9,8,Lower combined pressure
+39049,Franklin County,OH,39.9693,-83.0111,1323078,6,1200000,90768.7,0.45,103,73,9.0,0.056,9.2,5.8,5.7,12.0,17.0,13.5,7.3,50.0,73,78,70,79,,74.7,9,Infrastructure-health monitoring priority
+37183,Wake County,NC,35.7877,-78.6476,1168150,4,750000,64204.1,0.34,92,63,7.8,0.052,8.5,4.6,4.5,10.5,16.0,8.6,7.8,35.0,64,55,52,50,,55.0,10,Lower combined pressure

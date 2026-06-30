@@ -1,0 +1,19 @@
+variable,description
+county_fips,5-digit county FIPS code
+county_name,County name
+state,State abbreviation
+lat,County representative latitude
+lon,County representative longitude
+population,County population estimate
+dc_count,Number of data center records/facilities
+dc_sqft,Total data center square footage where available
+dc_sqft_per_100k,Total data center square footage per 100000 residents
+max_aqi,Maximum annual AQI
+p90_aqi,90th percentile AQI
+pm25_mean,Mean annual PM2.5 across county monitors
+ozone_mean,Mean annual ozone across county monitors
+asthma_prev,CDC PLACES asthma prevalence
+copd_prev,CDC PLACES COPD prevalence
+chd_prev,CDC PLACES coronary heart disease prevalence
+dcehpi,Data Center Environmental Health Pressure Index
+priority_group,Policy screening category
