@@ -1,6 +1,19 @@
 {
-  "built_at_utc": "demo-preview",
-  "rows": 10,
-  "interpretation": "Demo preview data only. Run the GitHub Action to pull public datasets and create live data.",
-  "warnings": ["This file is a preview placeholder. Do not cite it as empirical results."]
+  "built_at_utc": "2026-06-30T17:07:47.016293+00:00",
+  "airdata_year": 2024,
+  "acs_year": 2024,
+  "places_release": 2025,
+  "county_shapes_year": 2024,
+  "rows": 3244,
+  "sources_loaded": [
+    "airdata",
+    "places",
+    "eji_optional",
+    "county_centroids"
+  ],
+  "warnings": [
+    "data_centers: RuntimeError: No IM3 CSV files could be parsed.",
+    "acs: JSONDecodeError: Expecting value: line 2 column 1 (char 1)"
+  ],
+  "interpretation": "DCEHPI is a screening index, not a causal health-impact estimate."
 }

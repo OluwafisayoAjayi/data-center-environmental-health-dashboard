@@ -1,19 +1,24 @@
 variable,description
 county_fips,5-digit county FIPS code
-county_name,County name
-state,State abbreviation
-lat,County representative latitude
-lon,County representative longitude
-population,County population estimate
-dc_count,Number of data center records/facilities
-dc_sqft,Total data center square footage where available
-dc_sqft_per_100k,Total data center square footage per 100000 residents
-max_aqi,Maximum annual AQI
-p90_aqi,90th percentile AQI
-pm25_mean,Mean annual PM2.5 across county monitors
-ozone_mean,Mean annual ozone across county monitors
-asthma_prev,CDC PLACES asthma prevalence
-copd_prev,CDC PLACES COPD prevalence
-chd_prev,CDC PLACES coronary heart disease prevalence
-dcehpi,Data Center Environmental Health Pressure Index
-priority_group,Policy screening category
+county_name,"County name from CDC PLACES, where available"
+state,"State abbreviation, where available"
+population,ACS county population estimate
+dc_count,Number of unique data center records/facilities in the county from IM3
+dc_sqft,Total data center square footage in the county where IM3 reports area
+dc_sqft_per_100k,"Total data center square footage per 100,000 residents"
+max_aqi,Maximum annual AQI from EPA AirData annual AQI by county
+p90_aqi,90th percentile AQI from EPA AirData annual AQI by county
+pm25_mean,Mean annual PM2.5 concentration across county monitors
+ozone_mean,Mean annual ozone concentration across county monitors
+asthma_prev,CDC PLACES crude prevalence of current asthma
+copd_prev,CDC PLACES crude prevalence of COPD
+chd_prev,CDC PLACES crude prevalence of coronary heart disease
+poor_physical_health_prev,CDC PLACES crude prevalence of poor physical health
+poor_mental_health_prev,CDC PLACES crude prevalence of poor mental health
+data_center_pressure,Percentile-based domain score summarizing data center count/intensity
+pollution_exposure,"Percentile-based domain score summarizing AQI, PM2.5, ozone, and unhealthy days"
+health_vulnerability,"Percentile-based domain score summarizing respiratory, cardiovascular, and health-status measures"
+social_vulnerability,Percentile-based domain score summarizing ACS/PLACES vulnerability measures
+environmental_justice,Optional EJI/climate burden score if retrieved
+dcehpi,"Data Center Environmental Health Pressure Index, 0-100 percentile-like weighted score"
+priority_group,Dashboard classification based on high-overlap thresholds
