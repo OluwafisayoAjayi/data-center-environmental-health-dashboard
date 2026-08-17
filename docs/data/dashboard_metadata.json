@@ -1,19 +1,18 @@
 {
-  "built_at_utc": "2026-08-10T08:56:21.184863+00:00",
+  "built_at_utc": "2026-08-17T08:06:06.226742+00:00",
   "airdata_year": 2024,
   "acs_year": 2024,
   "places_release": 2025,
   "county_shapes_year": 2024,
   "rows": 3244,
   "sources_loaded": [
+    "data_centers",
     "airdata",
     "places",
     "acs",
-    "eji_optional"
+    "eji_optional",
+    "county_centroids"
   ],
-  "warnings": [
-    "data_centers: RuntimeError: IM3 data loaded, but no valid 5-digit county FIPS codes could be constructed.",
-    "county_centroids: DataSourceError: '/vsizip//home/runner/work/data-center-environmental-health-dashboard/data-center-environmental-health-dashboard/data/raw/county_shapes_2024.zip' does not exist in the file system, and is not recognized as a supported dataset name."
-  ],
+  "warnings": [],
   "interpretation": "DCEHPI is a screening index, not a causal health-impact estimate."
 }
